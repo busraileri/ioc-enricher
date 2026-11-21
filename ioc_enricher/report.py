@@ -5,29 +5,29 @@ from datetime import datetime, timezone
 from .scoring import HIGH_THRESHOLD, SUSPICIOUS_THRESHOLD
 
 VERDICT_LABELS = {
-    "likely_malicious": "ZARARLI OLASILIĞI YÜKSEK",
-    "suspicious": "ŞÜPHELİ",
-    "no_data": "BİLGİ YOK",
-    "unavailable": "SORGU BAŞARISIZ",
-    "clean_looking": "TEMİZ GÖRÜNÜYOR",
+    "likely_malicious": "LIKELY MALICIOUS",
+    "suspicious": "SUSPICIOUS",
+    "no_data": "NO DATA",
+    "unavailable": "LOOKUP FAILED",
+    "clean_looking": "LOOKS CLEAN",
 }
-ORDER = list(VERDICT_LABELS)  # önem sırası: en önemli üstte
+ORDER = list(VERDICT_LABELS)  # most important first
 
 
 def defang_text(text: str) -> str:
-    """Metindeki bağlantıları ve noktaları tıklanamaz hâle getirir."""
+    """Make links and dots in free text non-clickable."""
     t = re.sub(r"^http", "hxxp", text.strip(), flags=re.IGNORECASE)
     return t.replace(".", "[.]")
 
 
 def defang(kind: str, value: str) -> str:
     if kind in ("md5", "sha1", "sha256"):
-        return value  # hash'te tıklanacak bir şey yok
+        return value  # nothing clickable in a hash, and altering it would break searching
     return defang_text(value)
 
 
 def csv_safe(value) -> str:
-    """CSV formül enjeksiyonunu önler: =, +, -, @ ile başlayan hücreleri etkisizleştirir."""
+    """Prevent CSV formula injection: neutralize cells starting with =, +, -, @.."""
     s = str(value)
     return "'" + s if s.startswith(("=", "+", "-", "@", "\t", "\r")) else s
 
@@ -43,10 +43,11 @@ def _counts(r) -> str:
 
 
 def format_table(results) -> str:
-    headers = ["Tür", "Gösterge", "Karar", "Zararlı/Şüpheli", "Önbellek"]
+    headers = ["Type", "Indicator", "Verdict",
+               "Malicious/Suspicious", "Cached"]
     body = [
         [r["kind"], defang(r["kind"], r["value"]), VERDICT_LABELS[r["verdict"]],
-         _counts(r), "evet" if r.get("cached") else "hayır"]
+         _counts(r), "yes" if r.get("cached") else "no"]
         for r in _sorted(results)
     ]
     widths = [max(len(str(row[i])) for row in [headers] + body)
@@ -58,17 +59,17 @@ def format_table(results) -> str:
 
 
 def write_csv(results, path):
-    # utf-8-sig: Excel Türkçe karakterleri doğru açar
+    # utf-8-sig so Excel detects the encoding correctly
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["tür", "gösterge", "karar", "zararlı",
-                   "şüpheli", "önbellek", "öneri", "ayrıntı"])
+        w.writerow(["type", "indicator", "verdict", "malicious",
+                   "suspicious", "cached", "advice", "detail"])
         for r in _sorted(results):
             w.writerow([csv_safe(x) for x in [
                 r["kind"], defang(r["kind"], r["value"]
                                   ), VERDICT_LABELS[r["verdict"]],
                 r.get("malicious", ""), r.get("suspicious", ""),
-                "evet" if r.get("cached") else "hayır", r.get(
+                "yes" if r.get("cached") else "no", r.get(
                     "advice", ""), r.get("detail", ""),
             ]])
 
@@ -82,12 +83,12 @@ def write_markdown(results, path, skipped=None, generated_at=None):
         timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     ordered = _sorted(results)
     lines = [
-        "# IOC Zenginleştirme Raporu",
+        "# IOC Enrichment Report",
         "",
-        f"**Oluşturulma:** {generated_at}  ",
-        f"**Toplam gösterge:** {len(results)}",
+        f"**Generated:** {generated_at}  ",
+        f"**Total indicators:** {len(results)}",
         "",
-        "## Özet",
+        "## Summary",
         "",
     ]
     for v in ORDER:
@@ -95,8 +96,8 @@ def write_markdown(results, path, skipped=None, generated_at=None):
         if n:
             lines.append(f"- {VERDICT_LABELS[v]}: {n}")
 
-    lines += ["", "## Sonuçlar", "",
-              "| Tür | Gösterge | Karar | Zararlı/Şüpheli | Öneri |",
+    lines += ["", "## Results", "",
+              "| Type | Indicator | Verdict | Malicious/Suspicious | Advice |",
               "|---|---|---|---|---|"]
     for r in ordered:
         lines.append("| " + " | ".join(_md(c) for c in [
@@ -105,18 +106,18 @@ def write_markdown(results, path, skipped=None, generated_at=None):
         ]) + " |")
 
     if skipped:
-        lines += ["", "## Atlanan girdiler", ""]
+        lines += ["", "## Skipped inputs", ""]
         for raw, reason in skipped:
             lines.append(f"- `{_md(defang_text(raw))}`: {reason}")
 
     lines += [
-        "", "## Notlar ve sınırlar", "",
-        "- Sonuçlar yalnızca VirusTotal verisine dayanır; tek kaynak yanılabilir.",
-        f"- Eşikler: {HIGH_THRESHOLD}+ zararlı işareti = olasılık yüksek, "
-        f"{SUSPICIOUS_THRESHOLD}-{HIGH_THRESHOLD - 1} işaret = şüpheli (manuel doğrulama).",
-        "- \"Bilgi yok\" temiz demek değildir; yeni ya da hedefe özel zararlılar henüz kayıtlı olmayabilir.",
-        "- Önbellekli sonuçlar 24 saate kadar eski olabilir.",
-        "- Göstergeler okunurken yanlışlıkla tıklanmasın diye defang edilmiştir.",
+        "", "## Notes and limitations", "",
+        "- Results rely on VirusTotal data only; a single source can be wrong",
+        f"- Thresholds: {HIGH_THRESHOLD}+ malicious flags = likely malicious, "
+        f"{SUSPICIOUS_THRESHOLD}-{HIGH_THRESHOLD - 1} flags = suspicious (verify manually).",
+        "- \"No data\" does not mean clean: new or targeted malware may not be recorded yet.",
+        "- Cached results can be up to 24 hours old.",
+        "- Indicators are defanged so they cannot be clicked by accident.",
         "",
     ]
     with open(path, "w", encoding="utf-8") as f:

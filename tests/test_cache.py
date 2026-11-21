@@ -51,7 +51,7 @@ def test_not_found_is_cached(tmp_path):
 
 def test_corrupt_file_starts_empty(tmp_path):
     path = tmp_path / "cache.json"
-    path.write_text("{bozuk json", encoding="utf-8")
+    path.write_text("{corrupt json", encoding="utf-8")
     assert Cache(str(path)).get("ip", "8.8.8.8") is None
 
 
@@ -64,5 +64,5 @@ def test_second_run_makes_no_api_calls(tmp_path):
     assert first[0]["cached"] is False
 
     second = enrich(IOCS, client, Cache(path))
-    assert client.calls == 1  # API'ye ikinci kez gidilmedi
+    assert client.calls == 1  # the API was not called a second time
     assert second[0]["cached"] is True

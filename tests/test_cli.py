@@ -14,7 +14,7 @@ class FakeClient:
 
 
 def no_client():
-    raise AssertionError("istemci oluşturulmamalıydı")
+    raise AssertionError("the client should not have been created")
 
 
 def make_input(tmp_path, text="8.8.8.8\nexample.org\n"):
@@ -30,7 +30,7 @@ def base_args(tmp_path, inp):
 def test_dry_run_makes_no_api_calls_and_writes_nothing(tmp_path, capsys):
     args = base_args(tmp_path, make_input(tmp_path)) + ["--dry-run"]
     assert main(args, client_factory=no_client) == 0
-    assert "2 API sorgusu" in capsys.readouterr().err
+    assert "2 API queries" in capsys.readouterr().err
     assert not (tmp_path / "out").exists()
 
 
@@ -49,11 +49,11 @@ def test_second_run_uses_cache(tmp_path):
     args = base_args(tmp_path, make_input(tmp_path))
     main(args, client_factory=lambda: client)
     main(args, client_factory=lambda: client)
-    assert client.calls == 2  # ikinci çalıştırmada API'ye gidilmedi
+    assert client.calls == 2  # no API calls on the second run
 
 
 def test_missing_input_file(tmp_path):
-    assert main([str(tmp_path / "yok.txt")], client_factory=no_client) == 2
+    assert main([str(tmp_path / "missing.txt")], client_factory=no_client) == 2
 
 
 def test_no_valid_iocs(tmp_path):

@@ -1,0 +1,6 @@
+﻿type,indicator,verdict,malicious,suspicious,cached,advice,detail
+ip,8[.]8[.]8[.]8,SUSPICIOUS,1,0,no,"Suspicious: flagged by few engines, check the context and verify manually",
+url,hxxps://example[.]com/login,LOOKS CLEAN,0,0,no,Looks clean: but not proven clean,
+domain,example[.]org,LOOKS CLEAN,0,0,no,Looks clean: but not proven clean,
+md5,d41d8cd98f00b204e9800998ecf8427e,LOOKS CLEAN,0,0,no,Looks clean: but not proven clean,
+sha256,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855,LOOKS CLEAN,0,0,no,Looks clean: but not proven clean,

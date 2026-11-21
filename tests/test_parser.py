@@ -22,7 +22,7 @@ def test_classify_ip_domain_url():
 
 
 def test_unknown():
-    assert classify("bu-bir-ioc-degil")[0] == "unknown"
+    assert classify("not-an-ioc")[0] == "unknown"
 
 
 def test_private_ip():
@@ -32,7 +32,7 @@ def test_private_ip():
 
 
 def test_parse_iocs_dedupe_and_skip():
-    lines = ["# yorum", "", "8.8.8.8", "8.8.8.8", "10.0.0.5", "???"]
+    lines = ["# comment", "", "8.8.8.8", "8.8.8.8", "10.0.0.5", "???"]
     accepted, skipped = parse_iocs(lines)
     assert accepted == [{"kind": "ip", "value": "8.8.8.8"}]
     assert len(skipped) == 2

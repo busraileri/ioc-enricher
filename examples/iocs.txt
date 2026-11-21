@@ -1,4 +1,4 @@
-# Zararsız ya da halka açık örnekler
+# Harmless, public examples only
 8.8.8.8
 192.168.1.10
 hxxps://example[.]com/login
@@ -6,4 +6,4 @@ example[.]org
 d41d8cd98f00b204e9800998ecf8427e
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 8.8.8.8
-bu-bir-ioc-degil
+not-an-ioc

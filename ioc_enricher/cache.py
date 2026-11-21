@@ -2,8 +2,9 @@ import json
 import os
 import time
 
-DEFAULT_TTL = 24 * 3600  # 24 saat
-CACHEABLE = {"ok", "not_found"}  # hata ve kota durumları saklanmaz
+DEFAULT_TTL = 24 * 3600
+# errors and rate-limit results are never cached
+CACHEABLE = {"ok", "not_found"}
 
 
 class Cache:
@@ -19,7 +20,7 @@ class Cache:
                 data = json.load(f)
             return data if isinstance(data, dict) else {}
         except (FileNotFoundError, json.JSONDecodeError):
-            return {}  # dosya yok ya da bozuksa boş başla
+            return {}  # missing or corrupt file: start empty
 
     @staticmethod
     def _key(kind, value):
@@ -30,7 +31,7 @@ class Cache:
         if not entry:
             return None
         if self.now() - entry["ts"] > self.ttl:
-            return None  # süresi dolmuş
+            return None  # expired
         return entry["result"]
 
     def set(self, kind, value, result):
@@ -43,4 +44,5 @@ class Cache:
         tmp = self.path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(self._data, f, ensure_ascii=False, indent=2)
+        # write-then-replace so an interrupted save cannot corrupt the file
         os.replace(tmp, self.path)

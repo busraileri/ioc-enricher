@@ -1,15 +1,13 @@
-# Eşikler bir tasarım kararıdır, "doğru" tek bir sayı yoktur.
-# README'de nedenini açıkla ve gerektiğinde değiştir.
-# bu kadar bağımsız motor hemfikirse zararlı olma olasılığı yüksek
-HIGH_THRESHOLD = 3
-SUSPICIOUS_THRESHOLD = 1  # en az bir işaret varsa manuel bakılmalı
+# The thresholds are a design decision: there is no single "correct" number.
+HIGH_THRESHOLD = 3  # this many independent engines agreeing makes "likely malicious"
+SUSPICIOUS_THRESHOLD = 1  # at least one flag means a human should look
 
 VERDICTS = {
-    "likely_malicious": "Zararlı olma olasılığı yüksek: engelle, SIEM/EDR'da ara, etkilenen sistemi incele",
-    "suspicious": "Şüpheli: tek/az sayıda motor işaretledi, bağlama bak ve manuel doğrula",
-    "clean_looking": "Temiz görünüyor: ama kanıtlanmış temiz değil",
-    "no_data": "Bilgi yok: VirusTotal'de kayıt yok, bu 'temiz' demek değildir",
-    "unavailable": "Sorgu başarısız: sonra tekrar dene",
+    "likely_malicious": "Likely malicious: block, hunt in SIEM/EDR, investigate affected systems",
+    "suspicious": "Suspicious: flagged by few engines, check the context and verify manually",
+    "clean_looking": "Looks clean: but not proven clean",
+    "no_data": "No data: no record in VirusTotal, this does not mean clean",
+    "unavailable": "Lookup failed: try again later",
 }
 
 
@@ -32,7 +30,7 @@ def verdict(result: dict) -> str:
 
 
 def add_verdicts(results):
-    """Her sonuca 'verdict' ve 'advice' alanlarını ekler."""
+    """Add 'verdict' and 'advice' fields to every result."""
     out = []
     for r in results:
         v = verdict(r)

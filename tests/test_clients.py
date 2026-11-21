@@ -20,7 +20,7 @@ class FakeResponse:
 
 
 class FakeSession:
-    """Gerçek ağa çıkmadan, sıraya dizilmiş yanıtları döndürür."""
+    """Returns queued responses without touching the network."""
 
     def __init__(self, *responses):
         self.responses = list(responses)
@@ -28,14 +28,14 @@ class FakeSession:
 
     def get(self, url, headers=None, timeout=None):
         self.calls.append({"url": url, "headers": headers, "timeout": timeout})
-        # yanıt kalmadıysa IndexError: beklenmeyen fazladan istek
+        # IndexError here means an unexpected extra request
         item = self.responses.pop(0)
         if isinstance(item, Exception):
             raise item
         return item
 
 
-def make_client(*responses, min_interval=0, api_key="test-anahtar"):
+def make_client(*responses, min_interval=0, api_key="test-key"):
     session = FakeSession(*responses)
     sleeps = []
     client = VirusTotalClient(api_key=api_key, session=session,
@@ -60,16 +60,16 @@ def test_missing_fields_default_to_zero():
 
 def test_not_found_is_not_clean():
     client, _, _ = make_client(FakeResponse(404))
-    result = client.lookup("domain", "yeni-kayit.example")
+    result = client.lookup("domain", "new-record.example")
     assert result["status"] == "not_found"
-    assert "temiz demek değildir" in result["detail"]
+    assert "does not mean clean" in result["detail"]
 
 
 def test_invalid_key():
     client, _, _ = make_client(FakeResponse(401))
     result = client.lookup("ip", "8.8.8.8")
     assert result["status"] == "error"
-    assert "geçersiz" in result["detail"]
+    assert "invalid" in result["detail"]
 
 
 def test_rate_limit_then_success():
@@ -78,7 +78,7 @@ def test_rate_limit_then_success():
     result = client.lookup("ip", "8.8.8.8")
     assert result["status"] == "ok"
     assert len(session.calls) == 2
-    assert sleeps == [60]  # 429 sonrası bir dakika bekledi
+    assert sleeps == [60]  # waited one minute after the 429
 
 
 def test_rate_limit_exhausted():
@@ -86,15 +86,15 @@ def test_rate_limit_exhausted():
         FakeResponse(429), FakeResponse(429), FakeResponse(429))
     result = client.lookup("ip", "8.8.8.8")
     assert result["status"] == "rate_limited"
-    assert len(session.calls) == 3  # ilk deneme + 2 yeniden deneme
+    assert len(session.calls) == 3  # first attempt plus 2 retries
     assert sleeps == [60, 60]
 
 
 def test_network_error():
-    client, _, _ = make_client(requests.ConnectionError("bağlantı koptu"))
+    client, _, _ = make_client(requests.ConnectionError("connection dropped"))
     result = client.lookup("ip", "8.8.8.8")
     assert result["status"] == "error"
-    assert "ağ hatası" in result["detail"]
+    assert "network error" in result["detail"]
 
 
 def test_unexpected_status():
@@ -142,7 +142,7 @@ def test_url_to_id_is_unpadded_and_reversible():
 
 
 def test_api_key_sent_in_header_not_in_result():
-    key = "gizli-test-anahtari"
+    key = "secret-test-key"
     client, session, _ = make_client(FakeResponse(200, STATS), api_key=key)
     result = client.lookup("ip", "8.8.8.8")
     assert session.calls[0]["headers"]["x-apikey"] == key
@@ -154,7 +154,7 @@ def test_requests_are_spaced():
                                     min_interval=15.5)
     client.lookup("ip", "8.8.8.8")
     client.lookup("ip", "1.1.1.1")
-    assert len(sleeps) == 1  # ilk istek beklemez, ikincisi bekler
+    assert len(sleeps) == 1  # the first request does not wait, the second does
     assert 0 < sleeps[0] <= 15.5
 
 

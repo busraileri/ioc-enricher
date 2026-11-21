@@ -13,25 +13,25 @@ from .scoring import add_verdicts
 def build_parser():
     p = argparse.ArgumentParser(
         prog="ioc_enricher",
-        description="IOC listesini VirusTotal ile zenginleştirir ve karar raporu üretir. "
-                    "Yalnızca sorgu yapar; dosya ya da URL göndermez.",
+        description="Enrich a list of IOCs with VirusTotal and produce a verdict report. "
+                    "It only queries; it never uploads files or URLs.",
     )
     p.add_argument(
-        "input", help="IOC listesi (her satırda bir gösterge). Standart girdi için '-'")
+        "input", help="IOC list, one indicator per line. Use '-' for standard input")
     p.add_argument("--out-dir", default="reports",
-                   help="rapor klasörü (varsayılan: reports)")
+                   help="report directory (default: reports)")
     p.add_argument("--formats", nargs="+", choices=["csv", "md"], default=["csv", "md"],
-                   help="üretilecek rapor biçimleri (varsayılan: csv md)")
+                   help="report formats to write (default: csv md)")
     p.add_argument("--cache-file", default="cache.json",
-                   help="önbellek dosyası")
+                   help="cache file path")
     p.add_argument("--ttl-hours", type=float, default=24,
-                   help="önbellek geçerlilik süresi (saat)")
+                   help="cache lifetime in hours")
     p.add_argument("--refresh", action="store_true",
-                   help="önbelleği yok say, hepsini yeniden sorgula")
+                   help="ignore the cache and query everything again")
     p.add_argument("--max-queries", type=int, default=100,
-                   help="bir çalıştırmada izin verilen en fazla API sorgusu (varsayılan: 100)")
+                   help="maximum API queries allowed in one run (default: 100)")
     p.add_argument("--dry-run", action="store_true",
-                   help="API'ye gitmeden planı göster")
+                   help="show the plan without calling the API")
     return p
 
 
@@ -50,12 +50,12 @@ def main(argv=None, client_factory=VirusTotalClient, out=None, err=None):
     try:
         lines = read_lines(args.input)
     except (OSError, UnicodeDecodeError) as exc:
-        print(f"Girdi okunamadı: {exc}", file=err)
+        print(f"Could not read input: {exc}", file=err)
         return 2
 
     accepted, skipped = parse_iocs(lines)
     if not accepted:
-        print("Sorgulanacak geçerli gösterge yok.", file=err)
+        print("No valid indicators to look up.", file=err)
         return 2
 
     ttl = 0 if args.refresh else args.ttl_hours * 3600
@@ -63,16 +63,16 @@ def main(argv=None, client_factory=VirusTotalClient, out=None, err=None):
     pending = [i for i in accepted if cache.get(i["kind"], i["value"]) is None]
     eta = int(len(pending) * MIN_INTERVAL)
     print(
-        f"{len(accepted)} gösterge, {len(accepted) - len(pending)} önbellekte, "
-        f"{len(pending)} API sorgusu (~{eta} sn); {len(skipped)} girdi atlandı.",
+        f"{len(accepted)} indicators, {len(accepted) - len(pending)} cached, "
+        f"{len(pending)} API queries (~{eta} s); {len(skipped)} inputs skipped.",
         file=err,
     )
 
     if args.dry_run:
         return 0
     if len(pending) > args.max_queries:
-        print(f"Planlanan sorgu sayısı ({len(pending)}) --max-queries sınırını "
-              f"({args.max_queries}) aşıyor. Listeyi küçült ya da sınırı bilinçli olarak yükselt.",
+        print(f"Planned query count ({len(pending)}) exceeds the --max-queries limit"
+              f"({args.max_queries}) Shrink the list or raise the limit deliberately.",
               file=err)
         return 2
 
@@ -85,7 +85,7 @@ def main(argv=None, client_factory=VirusTotalClient, out=None, err=None):
     try:
         results = add_verdicts(enrich(accepted, client, cache))
     except KeyboardInterrupt:
-        print("\nİptal edildi. Tamamlanan sorgular önbellekte, yeniden çalıştırınca devam eder.",
+        print("\nCancelled. Completed lookups are cached; rerun to resume.",
               file=err)
         return 130
 
@@ -101,5 +101,5 @@ def main(argv=None, client_factory=VirusTotalClient, out=None, err=None):
         path = os.path.join(args.out_dir, "report.md")
         write_markdown(results, path, skipped)
         written.append(path)
-    print("\nRapor yazıldı: " + ", ".join(written), file=err)
+    print("\nReport written: " + ", ".join(written), file=err)
     return 0

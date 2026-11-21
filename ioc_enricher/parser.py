@@ -9,7 +9,7 @@ DOMAIN_RE = re.compile(
 
 
 def refang(value: str) -> str:
-    """Raporlardaki 'defang' edilmiş göstergeyi gerçek haline çevirir."""
+    """Convert a defanged indicator (as written in reports) back to its real form."""
     v = value.strip()
     v = re.sub(r"^hxxp", "http", v, flags=re.IGNORECASE)
     v = v.replace("[.]", ".").replace("(.)", ".")
@@ -18,7 +18,7 @@ def refang(value: str) -> str:
 
 
 def classify(raw: str):
-    """(tür, normalleştirilmiş_değer) döndürür. Tür tanınmazsa 'unknown'."""
+    """Return (kind, normalized_value). The kind is 'unknown' if nothing matches."""
     value = refang(raw)
 
     if value.lower().startswith(("http://", "https://")):
@@ -39,12 +39,12 @@ def classify(raw: str):
 
 
 def is_public_ip(value: str) -> bool:
-    """Özel (10.x, 192.168.x), yerel (127.x) ve ayrılmış adresleri eler."""
+    """Reject private (10.x, 192.168.x), loopback (127.x) and reserved addresses"""
     return ipaddress.ip_address(value).is_global
 
 
 def parse_iocs(lines):
-    """Satırlardan (kabul_edilenler, atlananlar) listelerini üretir."""
+    """Turn raw lines into (accepted, skipped) lists."""
     seen = set()
     accepted, skipped = [], []
 
@@ -56,10 +56,10 @@ def parse_iocs(lines):
         kind, value = classify(line)
 
         if kind == "unknown":
-            skipped.append((line, "tanınmayan biçim"))
+            skipped.append((line, "unrecognized format"))
             continue
         if kind == "ip" and not is_public_ip(value):
-            skipped.append((line, "özel/yerel IP"))
+            skipped.append((line, "private/local IP"))
             continue
 
         key = (kind, value)

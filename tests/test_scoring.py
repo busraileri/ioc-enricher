@@ -10,7 +10,6 @@ def test_clean():
 
 
 def test_single_engine_is_suspicious_not_malicious():
-    # Zararsız göstergede gördüğün 'malicious: 1' durumu
     assert verdict(ok(1, 0)) == "suspicious"
 
 

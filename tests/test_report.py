@@ -7,7 +7,7 @@ from ioc_enricher.report import (csv_safe, defang, format_table,
 def r(kind, value, verdict, m=0, s=0, cached=False, detail=""):
     return {"kind": kind, "value": value, "verdict": verdict, "status": "ok",
             "malicious": m, "suspicious": s, "cached": cached,
-            "advice": "öneri", "detail": detail}
+            "advice": "advice", "detail": detail}
 
 
 RESULTS = [
@@ -40,17 +40,17 @@ def test_csv_safe():
 def test_table_is_sorted_and_defanged():
     table = format_table(RESULTS)
     assert "http://" not in table
-    assert table.index("ZARARLI") < table.index("TEMİZ")
+    assert table.index("LIKELY MALICIOUS") < table.index("LOOKS CLEAN")
 
 
 def test_markdown_has_no_live_links(tmp_path):
     path = tmp_path / "r.md"
-    write_markdown(RESULTS, str(path), skipped=[("http://x.example", "tanınmayan biçim")],
+    write_markdown(RESULTS, str(path), skipped=[("http://x.example", "unrecognized format")],
                    generated_at="2026-01-01 00:00 UTC")
     text = path.read_text(encoding="utf-8")
     assert "http://" not in text and "https://" not in text
     assert "2026-01-01" in text
-    assert "Toplam gösterge" in text
+    assert "Total indicators" in text
 
 
 def test_csv_written_and_formula_neutralized(tmp_path):
@@ -58,6 +58,6 @@ def test_csv_written_and_formula_neutralized(tmp_path):
     write_csv([r("ip", "8.8.8.8", "clean_looking", detail="=1+1")], str(path))
     with open(path, encoding="utf-8-sig", newline="") as f:
         rows = list(csv.reader(f))
-    assert rows[0][0] == "tür"
+    assert rows[0][0] == "type"
     assert rows[1][-1] == "'=1+1"
     assert rows[1][1] == "8[.]8[.]8[.]8"

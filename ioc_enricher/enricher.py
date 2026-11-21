@@ -1,5 +1,5 @@
 def enrich(iocs, client, cache):
-    """Göstergeleri önce önbellekte arar, yoksa API'ye sorar."""
+    """Look each indicator up in the cache first, and only query the API on a miss."""
     results = []
     for ioc in iocs:
         kind, value = ioc["kind"], ioc["value"]
@@ -10,7 +10,7 @@ def enrich(iocs, client, cache):
         else:
             result = client.lookup(kind, value)
             cache.set(kind, value, result)
-            cache.save()  # her sorgudan sonra yaz: yarıda kesilirse ilerleme kaybolmaz
+            cache.save()  # save after every lookup so an interrupted run keeps its progress
             result = {**result, "cached": False}
 
         results.append({**ioc, **result})

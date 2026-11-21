@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_BASE = "https://www.virustotal.com/api/v3"
-MIN_INTERVAL = 15.5  # Ücretsiz kota dakikada 4 istek: 60 sn / 4 + pay
+MIN_INTERVAL = 15.5  # free tier allows 4 requests/minute: 60 s / 4 plus a margin
 
 ENDPOINTS = {
     "md5": "files",
@@ -20,7 +20,7 @@ ENDPOINTS = {
 
 
 def url_to_id(url: str) -> str:
-    """VirusTotal URL kimliği: dolgusuz, URL-güvenli base64."""
+    """VirusTotal URL identifier: URL-safe base64 without padding."""
     return base64.urlsafe_b64encode(url.encode()).decode().strip("=")
 
 
@@ -29,14 +29,14 @@ class VirusTotalClient:
         self.api_key = api_key or os.getenv("VT_API_KEY")
         if not self.api_key:
             raise RuntimeError(
-                "VT_API_KEY bulunamadı. .env dosyasını kontrol et.")
+                "VT_API_KEY not found. Check your .env file.")
         self.session = session or requests.Session()
         self.min_interval = min_interval
         self.sleep = sleep
         self._last_request = 0.0
 
     def _wait_turn(self):
-        """İstekler arası asgari süreyi korur (hız sınırı)."""
+        """Enforce the minimum gap between requests (rate limiting)."""
         elapsed = time.monotonic() - self._last_request
         if elapsed < self.min_interval and self._last_request:
             self.sleep(self.min_interval - elapsed)
@@ -48,9 +48,9 @@ class VirusTotalClient:
         return f"{ENDPOINTS[kind]}/{value}"
 
     def lookup(self, kind: str, value: str, retries: int = 2) -> dict:
-        """Göstergeyi sorgular. Hiçbir zaman dosya ya da URL göndermez, yalnızca sorar."""
+        """Look an indicator up. Never uploads a file or URL, it only queries."""
         if kind not in ENDPOINTS and kind != "url":
-            return {"status": "error", "detail": f"desteklenmeyen tür: {kind}"}
+            return {"status": "error", "detail": f"unsupported kind: {kind}"}
 
         url = f"{API_BASE}/{self._build_path(kind, value)}"
         headers = {"x-apikey": self.api_key, "accept": "application/json"}
@@ -60,22 +60,22 @@ class VirusTotalClient:
             try:
                 r = self.session.get(url, headers=headers, timeout=15)
             except requests.RequestException as exc:
-                return {"status": "error", "detail": f"ağ hatası: {type(exc).__name__}"}
+                return {"status": "error", "detail": f"network error: {type(exc).__name__}"}
 
             if r.status_code == 200:
                 return self._parse(r.json())
             if r.status_code == 404:
-                return {"status": "not_found", "detail": "VirusTotal'de kayıt yok (temiz demek değildir)"}
+                return {"status": "not_found", "detail": "no record in VirusTotal (does not mean clean)"}
             if r.status_code == 401:
-                return {"status": "error", "detail": "API anahtarı geçersiz"}
+                return {"status": "error", "detail": "invalid API key"}
             if r.status_code == 429:
                 if attempt < retries:
                     self.sleep(60)
                     continue
-                return {"status": "rate_limited", "detail": "kota aşıldı, sonra tekrar dene"}
-            return {"status": "error", "detail": f"beklenmeyen yanıt: HTTP {r.status_code}"}
+                return {"status": "rate_limited", "detail": "rate limit exceeded, try again later"}
+            return {"status": "error", "detail": f"unexpected response: HTTP {r.status_code}"}
 
-        return {"status": "error", "detail": "bilinmeyen hata"}
+        return {"status": "error", "detail": "unknown error"}
 
     @staticmethod
     def _parse(payload: dict) -> dict:
